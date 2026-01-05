@@ -181,20 +181,120 @@
 
   <script>
 
-    const renderTitle = () => {
-    const h1 = document.getElementById("form-title");
-    const form = forms[currentForm];
+    /* -----------------------------
+    STATE
+    ----------------------------- */
 
-    h1.innerHTML = `
-        ${form.title}
-        <span class="info-container">
-        ⓘ
-        <div class="tooltip">${form.info}</div>
-        </span>
-    `;
+    let currentForm = "paradelle";
+    let isReverseMode = false;
+
+    let inputLines = Array(6).fill("");
+    let obverseInputs = Array(4).fill("");
+    let thesisQuestion = "";
+
+    /* -----------------------------
+    CORE GENERATORS
+    ----------------------------- */
+
+    const handleGenerateParadelle = (reverse) => {
+    isReverseMode = reverse;
+    inputSection.style.display = "none";
+    outputSection.style.display = "block";
+    renderParadelle();
     };
 
-    const renderDraggableInputs = (container, values, placeholderPrefix) => {
+    const handleGenerateObverse = (reverse) => {
+    isReverseMode = reverse;
+    inputSection.style.display = "none";
+    outputSection.style.display = "block";
+    renderObverse();
+    };
+
+    /* -----------------------------
+    FORM REGISTRY
+    ----------------------------- */
+
+    const forms = {
+    paradelle: {
+        title: "Paradelle Generator",
+        info: "A constrained poem built from repeating and recombining lines.",
+        generate: handleGenerateParadelle
+    },
+    obverse: {
+        title: "Obverse",
+        info: "Inputs are mirrored to form two stanzas, followed by a thesis question.",
+        generate: handleGenerateObverse
+    }
+    };
+
+    /* -----------------------------
+    INPUT RENDERERS
+    ----------------------------- */
+
+    const generateInputs = () => {
+    inputSection.innerHTML = "";
+
+    const container = document.createElement("div");
+    inputSection.appendChild(container);
+
+    renderDraggableInputs(container, inputLines, "Enter line");
+
+    const btn = document.createElement("button");
+    btn.textContent = "Generate";
+    btn.onclick = () => forms[currentForm].generate(false);
+
+    const btnReverse = document.createElement("button");
+    btnReverse.textContent = "Generate (Reverse)";
+    btnReverse.onclick = () => forms[currentForm].generate(true);
+
+    inputSection.append(btn, btnReverse);
+    };
+
+    const generateObverseInputs = () => {
+    inputSection.innerHTML = "";
+
+    const container = document.createElement("div");
+    inputSection.appendChild(container);
+
+    renderDraggableInputs(container, obverseInputs, "Input");
+
+    const addBtn = document.createElement("button");
+    addBtn.textContent = "Add input";
+    addBtn.onclick = () => {
+        obverseInputs.push("");
+        generateObverseInputs();
+    };
+
+    const thesisWrap = document.createElement("div");
+    thesisWrap.style.marginTop = "1rem";
+
+    const thesisInput = document.createElement("input");
+    thesisInput.placeholder = "Thesis question";
+    thesisInput.value = thesisQuestion;
+    thesisInput.oninput = e => thesisQuestion = e.target.value;
+
+    const questionMark = document.createElement("span");
+    questionMark.textContent = " ?";
+    questionMark.style.marginLeft = "0.25rem";
+
+    thesisWrap.append(thesisInput, questionMark);
+
+    const btn = document.createElement("button");
+    btn.textContent = "Generate";
+    btn.onclick = () => forms[currentForm].generate(false);
+
+    const btnReverse = document.createElement("button");
+    btnReverse.textContent = "Generate (Reverse)";
+    btnReverse.onclick = () => forms[currentForm].generate(true);
+
+    inputSection.append(addBtn, thesisWrap, btn, btnReverse);
+    };
+
+    /* -----------------------------
+    DRAGGABLE INPUT HELPER
+    ----------------------------- */
+
+    const renderDraggableInputs = (container, values, label) => {
     container.innerHTML = "";
 
     values.forEach((value, index) => {
@@ -207,475 +307,75 @@
         handle.textContent = "≡";
 
         const input = document.createElement("input");
-        input.placeholder = `${placeholderPrefix} ${index + 1}`;
+        input.placeholder = `${label} ${index + 1}`;
         input.value = value;
         input.oninput = e => values[index] = e.target.value;
-
-        row.appendChild(handle);
-        row.appendChild(input);
 
         row.ondragstart = e => {
         e.dataTransfer.setData("text/plain", index);
         row.style.opacity = "0.5";
         };
 
-        row.ondragend = () => {
-        row.style.opacity = "1";
-        };
+        row.ondragend = () => row.style.opacity = "1";
 
         row.ondragover = e => e.preventDefault();
 
         row.ondrop = e => {
         e.preventDefault();
-        const fromIndex = +e.dataTransfer.getData("text/plain");
-        const toIndex = index;
-
-        if (fromIndex === toIndex) return;
-
-        const moved = values.splice(fromIndex, 1)[0];
-        values.splice(toIndex, 0, moved);
-
-        renderDraggableInputs(container, values, placeholderPrefix);
+        const from = +e.dataTransfer.getData("text/plain");
+        const to = index;
+        if (from === to) return;
+        const moved = values.splice(from, 1)[0];
+        values.splice(to, 0, moved);
+        renderDraggableInputs(container, values, label);
         };
 
+        row.append(handle, input);
         container.appendChild(row);
     });
     };
 
+    /* -----------------------------
+    OUTPUT RENDERERS
+    ----------------------------- */
 
-    const inputSection = document.getElementById("input-section");
-    const outputSection = document.getElementById("output-section");
-    const poemDiv = document.getElementById("poem");
-    const backBtn = document.getElementById("backBtn");
-    const shuffleBtn = document.getElementById("shuffleBtn");
-    const togglePlainBtn = document.getElementById("togglePlainBtn");
-
-    let inputLines = Array(6).fill("");
-    let obverseInputs = Array(4).fill("");
-    let thesisQuestion = "";
-    let interactiveLines = {};
-    let isReverseMode = false;
-    let showPlainText = false;
-
-    // Utility to split words (letters, numbers, apostrophes, hyphens)
-    const extractWords = (text) => text.match(/[A-Za-z0-9'-]+/g) || [];
-
-    // Fisher-Yates shuffle
-    const shuffleArray = (arr) => {
-      for (let i = arr.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [arr[i], arr[j]] = [arr[j], arr[i]];
-      }
-    };
-
-    // Scramble all words into 6 lines (for stanza 4)
-    const scrambleSix = (text) => {
-      const words = extractWords(text);
-      shuffleArray(words);
-
-    const result = [];
-      let start = 0;
-      const baseSize = Math.floor(words.length / 6);
-      let remainder = words.length % 6;
-
-      for (let i = 0; i < 6; i++) {
-        let size = baseSize + (remainder > 0 ? 1 : 0);
-        remainder--;
-        result.push(words.slice(start, start + size));
-        start += size;
-      }
-
-      return result;
-    };
-
-    // Generate input fields and generate buttons
-
-    const forms = {
-    paradelle: {
-        title: "Paradelle Generator",
-        info: "A paradelle is a poetic form involving repetition and rearrangement...",
-        lineCount: 6,
-        generate: handleGenerate
-    },
-
-    newform: {
-        title: "New Poem Form",
-        info: "Describe the constraints and spirit of the new form here.",
-        lineCount: 4,
-        generate: handleGenerateNewForm
-    }
-    };
-
-    let currentForm = "paradelle";
-
-
-    const generateInputs = () => {
-    inputSection.innerHTML = "";
-    inputLines = Array(forms[currentForm].lineCount).fill("");
-
-    const inputsContainer = document.createElement("div");
-    inputSection.appendChild(inputsContainer);
-
-    renderDraggableInputs(inputsContainer, inputLines, "Enter line");
-
-    const handleGenerateObverse = (reverse) => {
-    isReverseMode = reverse;
-    showPlainText = true; // Obverse is textual, not interactive
-
-    inputSection.style.display = "none";
-    outputSection.style.display = "block";
-
-    renderObverse();
-    };
-
-
-    const btn = document.createElement("button");
-    btn.textContent = `Generate ${forms[currentForm].title}`;
-    btn.onclick = () => forms[currentForm].generate(false);
-    inputSection.appendChild(btn);
-
-    const btnReverse = document.createElement("button");
-    btnReverse.textContent = `Generate ${forms[currentForm].title} in Reverse`;
-    btnReverse.onclick = () => handleGenerate(true);
-    inputSection.appendChild(btnReverse);
-    };
-
-    // Render a plain text line (not interactive)
-    const renderLine = (line) => {
-      const div = document.createElement("div");
-      div.className = "line";
-      div.textContent = line;
-      return div;
-    };
-
-    // Render an interactive draggable line for a key in interactiveLines
-    const renderInteractiveLine = (key) => {
-      const lineDiv = document.createElement("div");
-      lineDiv.className = "line";
-      interactiveLines[key].forEach((word, idx) => {
-        const span = document.createElement("span");
-        span.className = "word";
-        span.draggable = true;
-        span.textContent = word;
-
-        span.ondragstart = (e) => {
-          e.dataTransfer.setData("fromKey", key);
-          e.dataTransfer.setData("fromIdx", idx);
-        };
-
-        span.ondrop = (e) => {
-          e.preventDefault();
-          const fromKey = e.dataTransfer.getData("fromKey");
-          const fromIdx = +e.dataTransfer.getData("fromIdx");
-          if (!(fromKey in interactiveLines)) return;
-
-          // Move the dragged word
-          const word = interactiveLines[fromKey].splice(fromIdx, 1)[0];
-          interactiveLines[key].splice(idx, 0, word);
-
-          // In reverse mode, update mirrored lines if needed
-          if (isReverseMode) updateMirroredLines();
-
-          renderPoem();
-        };
-
-        span.ondragover = (e) => e.preventDefault();
-        lineDiv.appendChild(span);
-      });
-      return lineDiv;
-    };
-
-    // Update mirrored lines (lines 2 and 4 mirror 1 and 3 in reverse mode)
-    const updateMirroredLines = () => {
-      // stanza 1
-      interactiveLines["s1l2"] = [...interactiveLines["s1l1"]];
-      interactiveLines["s1l4"] = [...interactiveLines["s1l3"]];
-      // stanza 2
-      interactiveLines["s2l2"] = [...interactiveLines["s2l1"]];
-      interactiveLines["s2l4"] = [...interactiveLines["s2l3"]];
-      // stanza 3
-      interactiveLines["s3l2"] = [...interactiveLines["s3l1"]];
-      interactiveLines["s3l4"] = [...interactiveLines["s3l3"]];
-    };
-
-    // Handle poem generation (standard or reverse)
-    const handleGenerate = (reverse) => {
-      isReverseMode = reverse;
-      showPlainText = false;
-      prepareInteractiveLines(isReverseMode);
-      inputSection.style.display = "none";
-      outputSection.style.display = "block";
-      togglePlainBtn.textContent = "View as Plain Text";
-      renderPoem();
-    };
-
-    // Prepare interactiveLines for the poem based on mode
-    const prepareInteractiveLines = (isReverseMode) => {
-      const [l1, l2, l3, l4, l5, l6] = inputLines;
-
-      interactiveLines = {};
-
-      if (!isReverseMode) {
-        // Standard mode
-        // Stanza 1 lines 1-4: inputs 1 & 2 repeated (plain)
-        interactiveLines["s1l1"] = extractWords(l1);
-        interactiveLines["s1l2"] = extractWords(l1);
-        interactiveLines["s1l3"] = extractWords(l2);
-        interactiveLines["s1l4"] = extractWords(l2);
-        // lines 5 & 6 shuffled interactive from l1 and l2 separately
-        interactiveLines["s1l5"] = extractWords(l1);
-        shuffleArray(interactiveLines["s1l5"]);
-        interactiveLines["s1l6"] = extractWords(l2);
-        shuffleArray(interactiveLines["s1l6"]);
-
-        // Stanza 2 lines 1-4 inputs 3 & 4 repeated (plain)
-        interactiveLines["s2l1"] = extractWords(l3);
-        interactiveLines["s2l2"] = extractWords(l3);
-        interactiveLines["s2l3"] = extractWords(l4);
-        interactiveLines["s2l4"] = extractWords(l4);
-        // lines 5 & 6 shuffled interactive
-        interactiveLines["s2l5"] = extractWords(l3);
-        shuffleArray(interactiveLines["s2l5"]);
-        interactiveLines["s2l6"] = extractWords(l4);
-        shuffleArray(interactiveLines["s2l6"]);
-
-        // Stanza 3 lines 1-4 inputs 5 & 6 repeated (plain)
-        interactiveLines["s3l1"] = extractWords(l5);
-        interactiveLines["s3l2"] = extractWords(l5);
-        interactiveLines["s3l3"] = extractWords(l6);
-        interactiveLines["s3l4"] = extractWords(l6);
-        // lines 5 & 6 shuffled interactive
-        interactiveLines["s3l5"] = extractWords(l5);
-        shuffleArray(interactiveLines["s3l5"]);
-        interactiveLines["s3l6"] = extractWords(l6);
-        shuffleArray(interactiveLines["s3l6"]);
-
-      } else {
-        // Reverse mode
-        // For each stanza 1-3:
-        // Lines 1 & 3 interactive from all words in that stanza's two input lines shuffled and split
-        // Lines 2 & 4 mirrors of 1 & 3 (plain)
-        // Lines 5 & 6 original inputs (plain)
-
-        // Stanza 1
-        const s1words = extractWords(`${l1} ${l2}`);
-        shuffleArray(s1words);
-        const mid1 = Math.ceil(s1words.length / 2);
-        interactiveLines["s1l1"] = s1words.slice(0, mid1);
-        interactiveLines["s1l3"] = s1words.slice(mid1);
-        interactiveLines["s1l5"] = extractWords(l1);
-        interactiveLines["s1l6"] = extractWords(l2);
-
-        // Stanza 2
-        const s2words = extractWords(`${l3} ${l4}`);
-        shuffleArray(s2words);
-        const mid2 = Math.ceil(s2words.length / 2);
-        interactiveLines["s2l1"] = s2words.slice(0, mid2);
-        interactiveLines["s2l3"] = s2words.slice(mid2);
-        interactiveLines["s2l5"] = extractWords(l3);
-        interactiveLines["s2l6"] = extractWords(l4);
-
-        // Stanza 3
-        const s3words = extractWords(`${l5} ${l6}`);
-        shuffleArray(s3words);
-        const mid3 = Math.ceil(s3words.length / 2);
-        interactiveLines["s3l1"] = s3words.slice(0, mid3);
-        interactiveLines["s3l3"] = s3words.slice(mid3);
-        interactiveLines["s3l5"] = extractWords(l5);
-        interactiveLines["s3l6"] = extractWords(l6);
-
-        updateMirroredLines();
-      }
-
-      // Stanza 4 (final stanza) - always 6 interactive lines from all words
-      const allWords = inputLines.join(" ");
-      const scrambledSixLines = scrambleSix(allWords);
-      scrambledSixLines.forEach((arr, i) => (interactiveLines[`f${i}`] = arr));
-    };
-
-    // Render the poem in the outputSection (interactive or plain text)
-    const renderPoem = () => {
-      poemDiv.innerHTML = "";
-
-      const stanzaCount = 3;
-
-      // For stanzas 1-3: 6 lines each with line breaks between stanzas
-      for (let stanza = 1; stanza <= stanzaCount; stanza++) {
-        for (let lineNum = 1; lineNum <= 6; lineNum++) {
-          const key = `s${stanza}l${lineNum}`;
-          if (!interactiveLines[key]) continue;
-
-          if (showPlainText) {
-            poemDiv.appendChild(renderLine(interactiveLines[key].join(" ")));
-          } else {
-            if (isReverseMode) {
-              // Reverse: lines 1 & 3 interactive; lines 2 & 4 plain; 5 & 6 plain inputs
-              if ([1, 3].includes(lineNum)) {
-                poemDiv.appendChild(renderInteractiveLine(key));
-              } else {
-                poemDiv.appendChild(renderLine(interactiveLines[key].join(" ")));
-              }
-            } else {
-              // Standard: lines 5 & 6 interactive; lines 1-4 plain
-              if ([5, 6].includes(lineNum)) {
-                poemDiv.appendChild(renderInteractiveLine(key));
-              } else {
-                poemDiv.appendChild(renderLine(interactiveLines[key].join(" ")));
-              }
-            }
-          }
-        }
-        // Add blank line between stanzas except after last stanza
-        if (stanza < stanzaCount) {
-          poemDiv.appendChild(document.createElement("br"));
-        }
-      }
-
-      // Add blank line before final stanza
-      poemDiv.appendChild(document.createElement("br"));
-
-      // Stanza 4 - 6 interactive lines
-      for (let i = 0; i < 6; i++) {
-        const key = `f${i}`;
-        if (!interactiveLines[key]) continue;
-        if (showPlainText) {
-          poemDiv.appendChild(renderLine(interactiveLines[key].join(" ")));
-        } else {
-          poemDiv.appendChild(renderInteractiveLine(key));
-        }
-      }
-    };
-
-    // Shuffle interactive lines (only those interactive lines)
-    const shuffleInteractive = () => {
-      if (!interactiveLines) return;
-
-      if (isReverseMode) {
-        // In reverse mode interactive lines are s1l1, s1l3, s2l1, s2l3, s3l1, s3l3 + f0..f5
-        ["s1l1","s1l3","s2l1","s2l3","s3l1","s3l3"].forEach(k => {
-          if (interactiveLines[k]) shuffleArray(interactiveLines[k]);
-        });
-      } else {
-        // Standard mode interactive lines s1l5,s1l6,s2l5,s2l6,s3l5,s3l6 + f0..f5
-        ["s1l5","s1l6","s2l5","s2l6","s3l5","s3l6"].forEach(k => {
-          if (interactiveLines[k]) shuffleArray(interactiveLines[k]);
-        });
-      }
-      // Shuffle final stanza always
-      for(let i=0; i<6; i++){
-        if(interactiveLines[`f${i}`]) shuffleArray(interactiveLines[`f${i}`]);
-      }
-
-      if (isReverseMode) updateMirroredLines();
-
-      renderPoem();
+    const renderParadelle = () => {
+    outputSection.textContent = isReverseMode
+        ? "Paradelle (reverse mode)"
+        : "Paradelle (forward mode)";
     };
 
     const renderObverse = () => {
-    poemDiv.innerHTML = "";
+    const lines = obverseInputs.filter(l => l.trim());
+    const reversed = [...lines].reverse();
 
-    const trimmedInputs = obverseInputs
-        .map(l => l.trim())
-        .filter(l => l.length);
+    outputSection.innerHTML = "";
 
-    const firstStanza = isReverseMode
-        ? [...trimmedInputs].reverse()
-        : trimmedInputs;
+    const stanza1 = document.createElement("div");
+    const stanza2 = document.createElement("div");
 
-    const secondStanza = isReverseMode
-        ? trimmedInputs
-        : [...trimmedInputs].reverse();
+    const first = isReverseMode ? reversed : lines;
+    const second = isReverseMode ? lines : reversed;
 
-    // Stanza 1
-    firstStanza.forEach(line => {
-        poemDiv.appendChild(renderLine(line));
-    });
+    first.forEach(l => stanza1.append(l, document.createElement("br")));
+    second.forEach(l => stanza2.append(l, document.createElement("br")));
 
-    poemDiv.appendChild(document.createElement("br"));
+    const thesis = document.createElement("div");
+    thesis.style.marginTop = "1rem";
+    thesis.textContent = thesisQuestion.trim().endsWith("?")
+        ? thesisQuestion.trim()
+        : thesisQuestion.trim() + "?";
 
-    // Stanza 2
-    secondStanza.forEach(line => {
-        poemDiv.appendChild(renderLine(line));
-    });
-
-    poemDiv.appendChild(document.createElement("br"));
-
-    // Thesis question (ensure exactly one ?)
-    const thesis = thesisQuestion.replace(/\?*$/, "") + "?";
-    poemDiv.appendChild(renderLine(thesis));
+    outputSection.append(stanza1, stanza2, thesis);
     };
 
+    /* -----------------------------
+    TITLE + MENU
+    ----------------------------- */
 
-    // Button event listeners
-    backBtn.onclick = () => {
-      outputSection.style.display = "none";
-      inputSection.style.display = "block";
-      showPlainText = false;
-    };
-
-    shuffleBtn.onclick = () => {
-      shuffleInteractive();
-    };
-
-    togglePlainBtn.onclick = () => {
-      showPlainText = !showPlainText;
-      togglePlainBtn.textContent = showPlainText ? "View as Interactive" : "View as Plain Text";
-      renderPoem();
-    };
-
-    const generateObverseInputs = () => {
-    inputSection.innerHTML = "";
-
-    // Inputs label
-    const label = document.createElement("div");
-    label.textContent = "Inputs";
-    label.style.marginBottom = "0.5rem";
-    inputSection.appendChild(label);
-
-    const inputsContainer = document.createElement("div");
-    inputSection.appendChild(inputsContainer);
-
-    renderDraggableInputs(inputsContainer, obverseInputs, "Input");
-
-    // Add input button
-    const addBtn = document.createElement("button");
-    addBtn.textContent = "Add input";
-    addBtn.onclick = () => {
-        obverseInputs.push("");
-        generateObverseInputs();
-    };
-    inputSection.appendChild(addBtn);
-
-    // Thesis question
-    const thesisWrapper = document.createElement("div");
-    thesisWrapper.style.display = "flex";
-    thesisWrapper.style.alignItems = "center";
-    thesisWrapper.style.marginTop = "1rem";
-
-    const thesisInput = document.createElement("input");
-    thesisInput.placeholder = "Thesis question";
-    thesisInput.value = thesisQuestion;
-    thesisInput.oninput = e => thesisQuestion = e.target.value;
-    thesisWrapper.appendChild(thesisInput);
-
-    const qMark = document.createElement("span");
-    qMark.textContent = "?";
-    qMark.style.marginLeft = "0.25rem";
-    qMark.style.fontSize = "1.25rem";
-    thesisWrapper.appendChild(qMark);
-
-    inputSection.appendChild(thesisWrapper);
-
-    // Generate buttons
-    const btn = document.createElement("button");
-    btn.textContent = "Generate Obverse";
-    btn.onclick = () => handleGenerateObverse(false);
-    inputSection.appendChild(btn);
-
-    const btnReverse = document.createElement("button");
-    btnReverse.textContent = "Generate in Reverse";
-    btnReverse.onclick = () => handleGenerateObverse(true);
-    inputSection.appendChild(btnReverse);
+    const renderTitle = () => {
+    title.textContent = forms[currentForm].title;
+    info.textContent = forms[currentForm].info;
     };
 
     document.querySelectorAll(".menu-item").forEach(item => {
@@ -684,21 +384,20 @@
         outputSection.style.display = "none";
         inputSection.style.display = "block";
         renderTitle();
-        if (currentForm === "obverse") {
-            generateObverseInputs();
-            } else {
-            generateInputs();
-            };
+
+        currentForm === "obverse"
+        ? generateObverseInputs()
+        : generateInputs();
     };
+    });
+
+    /* -----------------------------
+    INITIAL LOAD
+    ----------------------------- */
 
     renderTitle();
-    if (currentForm === "obverse") {
-        generateObverseInputs();
-        } else {
-        generateInputs();
-        };
+    generateInputs();
 
-    });
 
   </script>
 </body>
