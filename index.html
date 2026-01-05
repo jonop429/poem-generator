@@ -197,6 +197,18 @@ const forms = {
         inputSection.appendChild(input);
       });
 
+      // Add input button
+    
+      const add = document.createElement("button");
+      add.textContent = "Add input";
+      add.className = "action";
+      add.onclick = () => {
+        this.state.inputs.push("");
+        saveState("obverse", this.state);
+        this.renderInputs();
+      };
+      inputSection.appendChild(add);
+
       const t = document.createElement("input");
       t.placeholder = "Thesis question";
       t.value = this.state.thesis;
@@ -205,7 +217,7 @@ const forms = {
         saveState("obverse", this.state);
       };
       inputSection.appendChild(t);
-
+      
       addGenerateButtons(this);
     },
 
