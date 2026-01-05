@@ -44,6 +44,7 @@ body {
 .menu-items div:hover { background: #ddd; }
 
 h1 { margin-top: 4rem; }
+p { font-size: small; }
 
 input {
   width: 100%;
@@ -62,6 +63,16 @@ button.action {
   border: 1px solid #ccc;
   padding: 1rem;
   margin-top: 1rem;
+}
+
+.word {
+  display: inline-block;
+  margin: 2px;
+  padding: 4px 6px;
+  background: #f0f0f0;
+  border: 1px solid #ccc;
+  cursor: move;
+  user-select: none;
 }
 </style>
 </head>
@@ -99,38 +110,113 @@ document.getElementById("menuToggle").onclick = () =>
 const loadState = (k, f) => JSON.parse(localStorage.getItem(k)) ?? f;
 const saveState = (k, v) => localStorage.setItem(k, JSON.stringify(v));
 
-function renderPoem(stanzas) {
-  poemDiv.textContent = stanzas.map(s => s.join("\n")).join("\n\n");
-  inputSection.style.display = "none";
-  outputSection.style.display = "block";
-}
-
 function addGenerateButtons(form) {
   const g = document.createElement("button");
   g.textContent = "Generate";
   g.className = "action";
-  g.onclick = () => renderPoem(form.generate(false));
+  g.onclick = () => renderPoem(form.generate(false), form.name);
 
   const r = document.createElement("button");
   r.textContent = "Generate in Reverse";
   r.className = "action";
-  r.onclick = () => renderPoem(form.generate(true));
+  r.onclick = () => renderPoem(form.generate(true), form.name);
 
   inputSection.append(g, r);
 }
 
+function renderDraggableLine(words) {
+  const div = document.createElement("div");
+  words.forEach((w, idx) => {
+    const span = document.createElement("span");
+    span.textContent = w;
+    span.className = "word";
+    span.draggable = true;
+
+    span.ondragstart = e => {
+      e.dataTransfer.setData("fromIdx", idx);
+    };
+
+    span.ondrop = e => {
+      e.preventDefault();
+      const fromIdx = +e.dataTransfer.getData("fromIdx");
+      if (fromIdx === idx) return;
+      const word = words.splice(fromIdx, 1)[0];
+      words.splice(idx, 0, word);
+      div.innerHTML = "";
+      div.append(...words.map((w, i) => renderDraggableWord(w, words, i)));
+    };
+
+    span.ondragover = e => e.preventDefault();
+    div.appendChild(span);
+  });
+  return div;
+}
+
+function renderDraggableWord(word, array, idx) {
+  const span = document.createElement("span");
+  span.textContent = word;
+  span.className = "word";
+  span.draggable = true;
+
+  span.ondragstart = e => e.dataTransfer.setData("fromIdx", idx);
+
+  span.ondrop = e => {
+    e.preventDefault();
+    const fromIdx = +e.dataTransfer.getData("fromIdx");
+    if (fromIdx === idx) return;
+    const w = array.splice(fromIdx, 1)[0];
+    array.splice(idx, 0, w);
+    span.parentElement.innerHTML = "";
+    span.parentElement.append(...array.map((w, i) => renderDraggableWord(w, array, i)));
+  };
+
+  span.ondragover = e => e.preventDefault();
+  return span;
+}
+
+function renderPoem(stanzas, formName) {
+  poemDiv.innerHTML = "";
+  outputSection.style.display = "block";
+  inputSection.style.display = "none";
+
+  stanzas.forEach((stanza, si) => {
+    stanza.forEach((line, li) => {
+      if (formName === "paradelle") {
+        // Only interactive lines: 5&6 forward, 1&3 reverse
+        const interactiveForward = [5,6];
+        const interactiveReverse = [1,3];
+        if ((si<3 && interactiveForward.includes(li+1)) || (si<3 && interactiveReverse.includes(li+1))) {
+          const words = line.split(" ");
+          poemDiv.appendChild(renderDraggableLine(words));
+        } else {
+          const div = document.createElement("div");
+          div.textContent = line;
+          poemDiv.appendChild(div);
+        }
+      } else {
+        const div = document.createElement("div");
+        div.textContent = line;
+        poemDiv.appendChild(div);
+      }
+    });
+    poemDiv.appendChild(document.createElement("br"));
+  });
+}
+
+// Forms definition
 const forms = {
 
   paradelle: {
+    name: "paradelle",
     title: "Paradelle Generator",
     info: "A paradelle is a poetic form involving repetition and rearrangement. Billy Collins invented it in \"Paradelle for Susan\" for his 1998 book, \"Picnic, Lightning,\" but claimed that it was an 11th century French form. The prank successfully prompted a paradelle revival before Collins admitted in 2002 that he made it up.",
     state: loadState("paradelle", { lines: Array(6).fill("") }),
 
     renderInputs() {
       inputSection.innerHTML = "";
-      this.state.lines.forEach((v, i) => {
+      this.state.lines.forEach((v,i) => {
         const input = document.createElement("input");
-        input.placeholder = `Line ${i + 1}`;
+        input.placeholder = `Line ${i+1}`;
         input.value = v;
         input.oninput = e => {
           this.state.lines[i] = e.target.value;
@@ -147,15 +233,15 @@ const forms = {
       const l = this.state.lines;
       const stanzas = [];
 
-      const stanza = (a, b) =>
+      const stanza = (a,b) =>
         !reverse
-          ? [a, a, b, b, shuffle(extract(a)).join(" "), shuffle(extract(b)).join(" ")]
+          ? [a,a,b,b,shuffle(extract(a)).join(" "), shuffle(extract(b)).join(" ")]
           : (() => {
               const w = shuffle(extract(a + " " + b));
-              const m = Math.ceil(w.length / 2);
+              const m = Math.ceil(w.length /2);
               return [
-                w.slice(0, m).join(" "),
-                w.slice(0, m).join(" "),
+                w.slice(0,m).join(" "),
+                w.slice(0,m).join(" "),
                 w.slice(m).join(" "),
                 w.slice(m).join(" "),
                 a,
@@ -163,16 +249,14 @@ const forms = {
               ];
             })();
 
-      stanzas.push(stanza(l[0], l[1]));
-      stanzas.push(stanza(l[2], l[3]));
-      stanzas.push(stanza(l[4], l[5]));
+      stanzas.push(stanza(l[0],l[1]));
+      stanzas.push(stanza(l[2],l[3]));
+      stanzas.push(stanza(l[4],l[5]));
 
       const all = shuffle(extract(l.join(" ")));
-      const size = Math.ceil(all.length / 6);
+      const size = Math.ceil(all.length /6);
       stanzas.push(
-        Array.from({ length: 6 }, (_, i) =>
-          all.slice(i * size, (i + 1) * size).join(" ")
-        )
+        Array.from({length:6},(_,i)=>all.slice(i*size,(i+1)*size).join(" "))
       );
 
       return stanzas;
@@ -180,15 +264,16 @@ const forms = {
   },
 
   obverse: {
+    name: "obverse",
     title: "Obverse",
     info: "The obverse was created by Nicole Sealey for her poem \"Candelabra with Heads\" in her 2017 debut, \"Ordinary Beast.\" Inputs are mirrored into two stanzas, followed by a thesis question.",
     state: loadState("obverse", { inputs: Array(4).fill(""), thesis: "" }),
 
     renderInputs() {
       inputSection.innerHTML = "";
-      this.state.inputs.forEach((v, i) => {
+      this.state.inputs.forEach((v,i) => {
         const input = document.createElement("input");
-        input.placeholder = `Input ${i + 1}`;
+        input.placeholder = `Input ${i+1}`;
         input.value = v;
         input.oninput = e => {
           this.state.inputs[i] = e.target.value;
@@ -197,33 +282,18 @@ const forms = {
         inputSection.appendChild(input);
       });
 
-      // Add input button
-    
-      const add = document.createElement("button");
-      add.textContent = "Add input";
-      add.className = "action";
-      add.onclick = () => {
-        this.state.inputs.push("");
-        saveState("obverse", this.state);
-        this.renderInputs();
-      };
-      inputSection.appendChild(add);
-
       const t = document.createElement("input");
       t.placeholder = "Thesis question";
       t.value = this.state.thesis;
-      t.oninput = e => {
-        this.state.thesis = e.target.value;
-        saveState("obverse", this.state);
-      };
+      t.oninput = e => { this.state.thesis = e.target.value; saveState("obverse", this.state); };
       inputSection.appendChild(t);
-      
+
       addGenerateButtons(this);
     },
 
     generate(reverse) {
       const clean = this.state.inputs.filter(l => l.trim());
-      const q = this.state.thesis.replace(/\?*$/, "") + "?";
+      const q = this.state.thesis.replace(/\?*$/,"") + "?";
       return [
         reverse ? [...clean].reverse() : clean,
         reverse ? clean : [...clean].reverse(),
@@ -231,6 +301,7 @@ const forms = {
       ];
     }
   }
+
 };
 
 function renderForm(name) {
@@ -251,9 +322,11 @@ document.querySelectorAll(".menu-item").forEach(i =>
   i.onclick = () => renderForm(i.dataset.form)
 );
 
+// initial load
 renderForm("paradelle");
 
 });
 </script>
+
 </body>
 </html>
