@@ -34,50 +34,40 @@ body {
   margin-top: 0.25rem;
 }
 
+.menu.open .menu-items { display: block; }
+
 .menu-items div {
   padding: 0.5rem;
   cursor: pointer;
 }
 
-.menu-items div:hover {
-  background: #ddd;
-}
+.menu-items div:hover { background: #ddd; }
 
-.menu.open .menu-items {
-  display: block;
-}
-
-h1 {
-  margin-top: 4rem;
-}
-
-.input-row {
-  display: flex;
-  align-items: center;
-  margin-bottom: 0.5rem;
-}
-
-.drag-handle {
-  cursor: grab;
-  margin-right: 0.5rem;
-  user-select: none;
-}
+h1 { margin-top: 4rem; }
 
 input {
   width: 100%;
   padding: 0.5rem;
+  margin-bottom: 0.5rem;
 }
 
 button.action {
   margin-top: 0.5rem;
   margin-right: 0.5rem;
 }
+
+.poem {
+  white-space: pre-wrap;
+  background: #f9f9f9;
+  border: 1px solid #ccc;
+  padding: 1rem;
+  margin-top: 1rem;
+}
 </style>
 </head>
 
 <body>
 
-<!-- MENU -->
 <div class="menu" id="menu">
   <button id="menuToggle">☰</button>
   <div class="menu-items">
@@ -90,113 +80,168 @@ button.action {
 <p id="info"></p>
 
 <div id="input-section"></div>
-<div id="output-section" style="display:none;"></div>
+
+<div id="output-section" style="display:none;">
+  <div class="poem" id="poem"></div>
+  <button class="action" id="backBtn">Back</button>
+</div>
 
 <script>
 document.addEventListener("DOMContentLoaded", () => {
 
-  const title = document.getElementById("title");
-  const info = document.getElementById("info");
-  const inputSection = document.getElementById("input-section");
-  const outputSection = document.getElementById("output-section");
+const inputSection = document.getElementById("input-section");
+const outputSection = document.getElementById("output-section");
+const poemDiv = document.getElementById("poem");
 
-  const menu = document.getElementById("menu");
-  document.getElementById("menuToggle").onclick = () =>
-    menu.classList.toggle("open");
+document.getElementById("menuToggle").onclick = () =>
+  document.getElementById("menu").classList.toggle("open");
 
-  let currentForm = "paradelle";
-  let inputs = Array(6).fill("");
-  let obverseInputs = Array(4).fill("");
-  let thesis = "";
+const loadState = (k, f) => JSON.parse(localStorage.getItem(k)) ?? f;
+const saveState = (k, v) => localStorage.setItem(k, JSON.stringify(v));
 
-  const forms = {
-    paradelle: {
-      title: "Paradelle Generator",
-      info: "A paradelle is a poetic form involving repetition and rearrangement. Billy Collins invented it in \"Paradelle for Susan\" for his 1998 book, \"Picnic, Lightning,\" but claimed that it was an 11th century French form. The prank successfully prompted a paradelle revival before Collins admitted in 2002 that he made it up.",
-      renderInputs() {
-        inputSection.innerHTML = "";
-        inputs.forEach((v, i) => {
-          const row = document.createElement("input");
-          row.placeholder = `Line ${i+1}`;
-          row.value = v;
-          row.oninput = e => inputs[i] = e.target.value;
-          inputSection.appendChild(row);
-        });
-        addButtons();
-      }
-    },
-    obverse: {
-      title: "Obverse",
-      info: "The obverse was created by Nicole Sealey for her poem \"Candelabra with Heads\" in her 2017 debut, \"Ordinary Beast.\" Inputs are mirrored into two stanzas, followed by a thesis question.",
-      renderInputs() {
-        inputSection.innerHTML = "";
-        obverseInputs.forEach((v, i) => {
-          const row = document.createElement("input");
-          row.placeholder = `Input ${i+1}`;
-          row.value = v;
-          row.oninput = e => obverseInputs[i] = e.target.value;
-          inputSection.appendChild(row);
-        });
+function renderPoem(stanzas) {
+  poemDiv.textContent = stanzas.map(s => s.join("\n")).join("\n\n");
+  inputSection.style.display = "none";
+  outputSection.style.display = "block";
+}
 
-        const thesisRow = document.createElement("div");
-        thesisRow.className = "input-row";
+function addGenerateButtons(form) {
+  const g = document.createElement("button");
+  g.textContent = "Generate";
+  g.className = "action";
+  g.onclick = () => renderPoem(form.generate(false));
 
-        const thesisInput = document.createElement("input");
-        thesisInput.placeholder = "Thesis question";
-        thesisInput.value = thesis;
-        thesisInput.oninput = e => thesis = e.target.value;
+  const r = document.createElement("button");
+  r.textContent = "Generate in Reverse";
+  r.className = "action";
+  r.onclick = () => renderPoem(form.generate(true));
 
-        const qm = document.createElement("span");
-        qm.textContent = " ?";
-        qm.style.marginLeft = "0.25rem";
+  inputSection.append(g, r);
+}
 
-        thesisRow.append(thesisInput, qm);
-        inputSection.appendChild(thesisRow);
+const forms = {
 
-        const add = document.createElement("button");
-        add.textContent = "Add input";
-        add.className = "action";
-        add.onclick = () => {
-          obverseInputs.push("");
-          forms.obverse.renderInputs();
+  paradelle: {
+    title: "Paradelle Generator",
+    info: "A paradelle is a poetic form involving repetition and rearrangement. Billy Collins invented it in \"Paradelle for Susan\" for his 1998 book, \"Picnic, Lightning,\" but claimed that it was an 11th century French form. The prank successfully prompted a paradelle revival before Collins admitted in 2002 that he made it up.",
+    state: loadState("paradelle", { lines: Array(6).fill("") }),
+
+    renderInputs() {
+      inputSection.innerHTML = "";
+      this.state.lines.forEach((v, i) => {
+        const input = document.createElement("input");
+        input.placeholder = `Line ${i + 1}`;
+        input.value = v;
+        input.oninput = e => {
+          this.state.lines[i] = e.target.value;
+          saveState("paradelle", this.state);
         };
+        inputSection.appendChild(input);
+      });
+      addGenerateButtons(this);
+    },
 
-        inputSection.appendChild(add);
-        addButtons();
-      }
+    generate(reverse) {
+      const extract = t => t.match(/[A-Za-z0-9'-]+/g) || [];
+      const shuffle = a => a.sort(() => Math.random() - 0.5);
+      const l = this.state.lines;
+      const stanzas = [];
+
+      const stanza = (a, b) =>
+        !reverse
+          ? [a, a, b, b, shuffle(extract(a)).join(" "), shuffle(extract(b)).join(" ")]
+          : (() => {
+              const w = shuffle(extract(a + " " + b));
+              const m = Math.ceil(w.length / 2);
+              return [
+                w.slice(0, m).join(" "),
+                w.slice(0, m).join(" "),
+                w.slice(m).join(" "),
+                w.slice(m).join(" "),
+                a,
+                b
+              ];
+            })();
+
+      stanzas.push(stanza(l[0], l[1]));
+      stanzas.push(stanza(l[2], l[3]));
+      stanzas.push(stanza(l[4], l[5]));
+
+      const all = shuffle(extract(l.join(" ")));
+      const size = Math.ceil(all.length / 6);
+      stanzas.push(
+        Array.from({ length: 6 }, (_, i) =>
+          all.slice(i * size, (i + 1) * size).join(" ")
+        )
+      );
+
+      return stanzas;
     }
-  };
+  },
 
-  function addButtons() {
-    const gen = document.createElement("button");
-    gen.textContent = "Generate";
-    gen.className = "action";
-    gen.onclick = () => alert("Generation placeholder");
+  obverse: {
+    title: "Obverse",
+    info: "The obverse was created by Nicole Sealey for her poem \"Candelabra with Heads\" in her 2017 debut, \"Ordinary Beast.\" Inputs are mirrored into two stanzas, followed by a thesis question.",
+    state: loadState("obverse", { inputs: Array(4).fill(""), thesis: "" }),
 
-    inputSection.appendChild(gen);
+    renderInputs() {
+      inputSection.innerHTML = "";
+      this.state.inputs.forEach((v, i) => {
+        const input = document.createElement("input");
+        input.placeholder = `Input ${i + 1}`;
+        input.value = v;
+        input.oninput = e => {
+          this.state.inputs[i] = e.target.value;
+          saveState("obverse", this.state);
+        };
+        inputSection.appendChild(input);
+      });
+
+      const t = document.createElement("input");
+      t.placeholder = "Thesis question";
+      t.value = this.state.thesis;
+      t.oninput = e => {
+        this.state.thesis = e.target.value;
+        saveState("obverse", this.state);
+      };
+      inputSection.appendChild(t);
+
+      addGenerateButtons(this);
+    },
+
+    generate(reverse) {
+      const clean = this.state.inputs.filter(l => l.trim());
+      const q = this.state.thesis.replace(/\?*$/, "") + "?";
+      return [
+        reverse ? [...clean].reverse() : clean,
+        reverse ? clean : [...clean].reverse(),
+        [q]
+      ];
+    }
   }
+};
 
-  function renderForm(name) {
-    currentForm = name;
-    title.textContent = forms[name].title;
-    info.textContent = forms[name].info;
-    forms[name].renderInputs();
-    outputSection.style.display = "none";
-    inputSection.style.display = "block";
-  }
+function renderForm(name) {
+  const f = forms[name];
+  document.getElementById("title").textContent = f.title;
+  document.getElementById("info").textContent = f.info;
+  inputSection.style.display = "block";
+  outputSection.style.display = "none";
+  f.renderInputs();
+}
 
-  document.querySelectorAll(".menu-item").forEach(item => {
-    item.onclick = () => {
-      menu.classList.remove("open");
-      renderForm(item.dataset.form);
-    };
-  });
+document.getElementById("backBtn").onclick = () => {
+  outputSection.style.display = "none";
+  inputSection.style.display = "block";
+};
 
-  /* INITIAL RENDER */
-  renderForm("paradelle");
+document.querySelectorAll(".menu-item").forEach(i =>
+  i.onclick = () => renderForm(i.dataset.form)
+);
+
+renderForm("paradelle");
 
 });
 </script>
-
 </body>
 </html>
