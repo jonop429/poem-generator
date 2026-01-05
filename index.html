@@ -4,88 +4,15 @@
 <meta charset="UTF-8">
 <title>Poem Forms</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
-
 <style>
-body {
-  font-family: sans-serif;
-  max-width: 800px;
-  margin: 2rem auto;
-  padding: 1rem;
-}
-
-.menu {
-  position: fixed;
-  top: 1rem;
-  left: 1rem;
-}
-
-.menu button {
-  background: #222;
-  color: white;
-  border: 0;
-  padding: 0.5rem 0.75rem;
-  cursor: pointer;
-}
-
-.menu-items {
-  display: none;
-  background: #f0f0f0;
-  border: 1px solid #ccc;
-  margin-top: 0.25rem;
-}
-
-.menu.open .menu-items { display: block; }
-
-.menu-items div {
-  padding: 0.5rem;
-  cursor: pointer;
-}
-
-.menu-items div:hover { background: #ddd; }
-
-h1 { margin-top: 4rem; }
-p { font-size: small; }
-
-input {
-  width: 100%;
-  padding: 0.5rem;
-  margin-bottom: 0.5rem;
-}
-
-button.action {
-  margin-top: 0.5rem;
-  margin-right: 0.5rem;
-}
-
-.poem {
-  white-space: pre-wrap;
-  background: #f9f9f9;
-  border: 1px solid #ccc;
-  padding: 1rem;
-  margin-top: 1rem;
-}
-
-.word {
-  display: inline-block;
-  margin: 2px;
-  padding: 4px 6px;
-  background: #f0f0f0;
-  border: 1px solid #ccc;
-  cursor: move;
-  user-select: none;
-}
+body { font-family:sans-serif; max-width:800px; margin:2rem auto; padding:1rem; }
+input { display:block; width:100%; margin-bottom:0.5rem; padding:0.5rem; }
+button { padding:0.5rem 1rem; margin:0.25rem 0.25rem 0.25rem 0; cursor:pointer; }
+.poem { background:#f9f9f9; padding:1rem; border:1px solid #ccc; white-space:pre-wrap; margin-top:1rem; }
+.word { display:inline-block; margin:2px; padding:4px 6px; background:#f0f0f0; border:1px solid #ccc; cursor:move; user-select:none; }
 </style>
 </head>
-
 <body>
-
-<div class="menu" id="menu">
-  <button id="menuToggle">☰</button>
-  <div class="menu-items">
-    <div class="menu-item" data-form="paradelle">Paradelle</div>
-    <div class="menu-item" data-form="obverse">Obverse</div>
-  </div>
-</div>
 
 <h1 id="title"></h1>
 <p id="info"></p>
@@ -94,239 +21,190 @@ button.action {
 
 <div id="output-section" style="display:none;">
   <div class="poem" id="poem"></div>
-  <button class="action" id="backBtn">Back</button>
+  <button id="backBtn">Back to form</button>
+  <button id="shuffleBtn">Shuffle</button>
+  <button id="togglePlainBtn">View as Plain Text</button>
 </div>
 
 <script>
-document.addEventListener("DOMContentLoaded", () => {
-
+const titleEl = document.getElementById("title");
+const infoEl = document.getElementById("info");
 const inputSection = document.getElementById("input-section");
 const outputSection = document.getElementById("output-section");
 const poemDiv = document.getElementById("poem");
+const backBtn = document.getElementById("backBtn");
+const shuffleBtn = document.getElementById("shuffleBtn");
+const togglePlainBtn = document.getElementById("togglePlainBtn");
 
-document.getElementById("menuToggle").onclick = () =>
-  document.getElementById("menu").classList.toggle("open");
+let inputLines = [];
+let thesisQuestion = "";
+let interactiveLines = {};
+let isReverseMode = false;
+let showPlainText = false;
+let currentForm = "paradelle"; // "paradelle" or "obverse"
 
-const loadState = (k, f) => JSON.parse(localStorage.getItem(k)) ?? f;
-const saveState = (k, v) => localStorage.setItem(k, JSON.stringify(v));
+// --- Utilities ---
+const extractWords = (text) => text.match(/[A-Za-z0-9'-]+/g) || [];
+const shuffleArray = arr => { for(let i=arr.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [arr[i],arr[j]]=[arr[j],arr[i]]; } };
+const renderLine = line => { const div = document.createElement("div"); div.textContent = line; return div; };
 
-function addGenerateButtons(form) {
-  const g = document.createElement("button");
-  g.textContent = "Generate";
-  g.className = "action";
-  g.onclick = () => renderPoem(form.generate(false), form.name);
-
-  const r = document.createElement("button");
-  r.textContent = "Generate in Reverse";
-  r.className = "action";
-  r.onclick = () => renderPoem(form.generate(true), form.name);
-
-  inputSection.append(g, r);
-}
-
-function renderDraggableLine(words) {
-  const div = document.createElement("div");
-  words.forEach((w, idx) => {
-    const span = document.createElement("span");
-    span.textContent = w;
-    span.className = "word";
-    span.draggable = true;
-
-    span.ondragstart = e => {
-      e.dataTransfer.setData("fromIdx", idx);
-    };
-
+// Word-level draggable line (Paradelle only)
+const renderInteractiveLine = key => {
+  const lineDiv = document.createElement("div");
+  interactiveLines[key].forEach((word, idx)=>{
+    const span=document.createElement("span");
+    span.className="word"; span.draggable=true; span.textContent=word;
+    span.ondragstart = e => { e.dataTransfer.setData("fromKey", key); e.dataTransfer.setData("fromIdx", idx); };
     span.ondrop = e => {
       e.preventDefault();
+      const fromKey = e.dataTransfer.getData("fromKey");
       const fromIdx = +e.dataTransfer.getData("fromIdx");
-      if (fromIdx === idx) return;
-      const word = words.splice(fromIdx, 1)[0];
-      words.splice(idx, 0, word);
-      div.innerHTML = "";
-      div.append(...words.map((w, i) => renderDraggableWord(w, words, i)));
+      if(!(fromKey in interactiveLines)) return;
+      const moved = interactiveLines[fromKey].splice(fromIdx,1)[0];
+      interactiveLines[key].splice(idx,0,moved);
+      if(isReverseMode) updateMirroredLines();
+      renderPoem();
     };
-
-    span.ondragover = e => e.preventDefault();
-    div.appendChild(span);
+    span.ondragover = e=>e.preventDefault();
+    lineDiv.appendChild(span);
   });
-  return div;
-}
+  return lineDiv;
+};
 
-function renderDraggableWord(word, array, idx) {
-  const span = document.createElement("span");
-  span.textContent = word;
-  span.className = "word";
-  span.draggable = true;
+// --- Paradelle Logic ---
+const updateMirroredLines = () => {
+  interactiveLines["s1l2"] = [...interactiveLines["s1l1"]];
+  interactiveLines["s1l4"] = [...interactiveLines["s1l3"]];
+  interactiveLines["s2l2"] = [...interactiveLines["s2l1"]];
+  interactiveLines["s2l4"] = [...interactiveLines["s2l3"]];
+  interactiveLines["s3l2"] = [...interactiveLines["s3l1"]];
+  interactiveLines["s3l4"] = [...interactiveLines["s3l3"]];
+};
 
-  span.ondragstart = e => e.dataTransfer.setData("fromIdx", idx);
+const scrambleSix = text => {
+  const words = extractWords(text); shuffleArray(words);
+  const result=[]; let start=0; const baseSize=Math.floor(words.length/6); let rem=words.length%6;
+  for(let i=0;i<6;i++){ let size=baseSize+(rem>0?1:0); rem--; result.push(words.slice(start,start+size)); start+=size; }
+  return result;
+};
 
-  span.ondrop = e => {
-    e.preventDefault();
-    const fromIdx = +e.dataTransfer.getData("fromIdx");
-    if (fromIdx === idx) return;
-    const w = array.splice(fromIdx, 1)[0];
-    array.splice(idx, 0, w);
-    span.parentElement.innerHTML = "";
-    span.parentElement.append(...array.map((w, i) => renderDraggableWord(w, array, i)));
-  };
+const prepareParadelle = reverse => {
+  const [l1,l2,l3,l4,l5,l6] = inputLines;
+  interactiveLines={};
+  if(!reverse){
+    interactiveLines["s1l1"]=extractWords(l1); interactiveLines["s1l2"]=extractWords(l1);
+    interactiveLines["s1l3"]=extractWords(l2); interactiveLines["s1l4"]=extractWords(l2);
+    interactiveLines["s1l5"]=extractWords(l1); shuffleArray(interactiveLines["s1l5"]);
+    interactiveLines["s1l6"]=extractWords(l2); shuffleArray(interactiveLines["s1l6"]);
+    interactiveLines["s2l1"]=extractWords(l3); interactiveLines["s2l2"]=extractWords(l3);
+    interactiveLines["s2l3"]=extractWords(l4); interactiveLines["s2l4"]=extractWords(l4);
+    interactiveLines["s2l5"]=extractWords(l3); shuffleArray(interactiveLines["s2l5"]);
+    interactiveLines["s2l6"]=extractWords(l4); shuffleArray(interactiveLines["s2l6"]);
+    interactiveLines["s3l1"]=extractWords(l5); interactiveLines["s3l2"]=extractWords(l5);
+    interactiveLines["s3l3"]=extractWords(l6); interactiveLines["s3l4"]=extractWords(l6);
+    interactiveLines["s3l5"]=extractWords(l5); shuffleArray(interactiveLines["s3l5"]);
+    interactiveLines["s3l6"]=extractWords(l6); shuffleArray(interactiveLines["s3l6"]);
+  } else {
+    const s1 = extractWords(`${l1} ${l2}`); shuffleArray(s1); const mid1=Math.ceil(s1.length/2);
+    interactiveLines["s1l1"]=s1.slice(0,mid1); interactiveLines["s1l3"]=s1.slice(mid1); interactiveLines["s1l5"]=extractWords(l1); interactiveLines["s1l6"]=extractWords(l2);
+    const s2 = extractWords(`${l3} ${l4}`); shuffleArray(s2); const mid2=Math.ceil(s2.length/2);
+    interactiveLines["s2l1"]=s2.slice(0,mid2); interactiveLines["s2l3"]=s2.slice(mid2); interactiveLines["s2l5"]=extractWords(l3); interactiveLines["s2l6"]=extractWords(l4);
+    const s3 = extractWords(`${l5} ${l6}`); shuffleArray(s3); const mid3=Math.ceil(s3.length/2);
+    interactiveLines["s3l1"]=s3.slice(0,mid3); interactiveLines["s3l3"]=s3.slice(mid3); interactiveLines["s3l5"]=extractWords(l5); interactiveLines["s3l6"]=extractWords(l6);
+    updateMirroredLines();
+  }
+  const allWords = inputLines.join(" "); scrambleSix(allWords).forEach((arr,i)=>interactiveLines[`f${i}`]=arr);
+};
 
-  span.ondragover = e => e.preventDefault();
-  return span;
-}
+// --- Obverse Logic ---
+const prepareObverse = reverse => {
+  const trimmed = inputLines.map(l=>l.trim()).filter(l=>l.length);
+  const first = reverse ? [...trimmed].reverse() : trimmed;
+  const second = reverse ? trimmed : [...trimmed].reverse();
+  interactiveLines={};
+  first.forEach((line,i)=>interactiveLines[`s1l${i+1}`]=[line]);
+  second.forEach((line,i)=>interactiveLines[`s2l${i+1}`]=[line]);
+  interactiveLines["thesis"] = [thesisQuestion.replace(/\?*$/,"")+"?"];
+};
 
-function renderPoem(stanzas, formName) {
-  poemDiv.innerHTML = "";
-  outputSection.style.display = "block";
-  inputSection.style.display = "none";
-
-  stanzas.forEach((stanza, si) => {
-    stanza.forEach((line, li) => {
-      if (formName === "paradelle") {
-        // Only interactive lines: 5&6 forward, 1&3 reverse
-        const interactiveForward = [5,6];
-        const interactiveReverse = [1,3];
-        if ((si<3 && interactiveForward.includes(li+1)) || (si<3 && interactiveReverse.includes(li+1))) {
-          const words = line.split(" ");
-          poemDiv.appendChild(renderDraggableLine(words));
-        } else {
-          const div = document.createElement("div");
-          div.textContent = line;
-          poemDiv.appendChild(div);
-        }
-      } else {
-        const div = document.createElement("div");
-        div.textContent = line;
-        poemDiv.appendChild(div);
-      }
-    });
+// --- Render Poem ---
+const renderPoem = () => {
+  poemDiv.innerHTML="";
+  if(currentForm==="paradelle"){
+    for(let stanza=1;stanza<=3;stanza++){
+      for(let ln=1;ln<=6;ln++){
+        const key=`s${stanza}l${ln}`; if(!interactiveLines[key]) continue;
+        if(showPlainText){ poemDiv.appendChild(renderLine(interactiveLines[key].join(" "))); }
+        else{ if(isReverseMode&&[1,3].includes(ln)||!isReverseMode&&[5,6].includes(ln)) poemDiv.appendChild(renderInteractiveLine(key));
+        else poemDiv.appendChild(renderLine(interactiveLines[key].join(" "))); }
+      } poemDiv.appendChild(document.createElement("br"));
+    }
     poemDiv.appendChild(document.createElement("br"));
+    for(let i=0;i<6;i++){ const k=`f${i}`; if(interactiveLines[k]) poemDiv.appendChild(showPlainText?renderLine(interactiveLines[k].join(" ")):renderInteractiveLine(k)); }
+  } else if(currentForm==="obverse"){
+    ["s1","s2"].forEach(stanza=>{
+      Object.keys(interactiveLines).filter(k=>k.startsWith(stanza)).forEach(k=>{
+        poemDiv.appendChild(renderLine(interactiveLines[k][0]));
+      });
+      poemDiv.appendChild(document.createElement("br"));
+    });
+    poemDiv.appendChild(renderLine(interactiveLines["thesis"][0]));
+  }
+};
+
+// --- UI Handlers ---
+const generateInputs = () => {
+  inputSection.innerHTML="";
+  inputLines = currentForm==="paradelle"?Array(6).fill(""):Array(4).fill("");
+  inputLines.forEach((l,i)=>{
+    const inp=document.createElement("input"); inp.placeholder=`Enter line ${i+1}`; inp.value=l;
+    inp.oninput=e=>inputLines[i]=e.target.value; inputSection.appendChild(inp);
   });
-}
 
-// Forms definition
-const forms = {
-
-  paradelle: {
-    name: "paradelle",
-    title: "Paradelle Generator",
-    info: "A paradelle is a poetic form involving repetition and rearrangement. Billy Collins invented it in \"Paradelle for Susan\" for his 1998 book, \"Picnic, Lightning,\" but claimed that it was an 11th century French form. The prank successfully prompted a paradelle revival before Collins admitted in 2002 that he made it up.",
-    state: loadState("paradelle", { lines: Array(6).fill("") }),
-
-    renderInputs() {
-      inputSection.innerHTML = "";
-      this.state.lines.forEach((v,i) => {
-        const input = document.createElement("input");
-        input.placeholder = `Line ${i+1}`;
-        input.value = v;
-        input.oninput = e => {
-          this.state.lines[i] = e.target.value;
-          saveState("paradelle", this.state);
-        };
-        inputSection.appendChild(input);
-      });
-      addGenerateButtons(this);
-    },
-
-    generate(reverse) {
-      const extract = t => t.match(/[A-Za-z0-9'-]+/g) || [];
-      const shuffle = a => a.sort(() => Math.random() - 0.5);
-      const l = this.state.lines;
-      const stanzas = [];
-
-      const stanza = (a,b) =>
-        !reverse
-          ? [a,a,b,b,shuffle(extract(a)).join(" "), shuffle(extract(b)).join(" ")]
-          : (() => {
-              const w = shuffle(extract(a + " " + b));
-              const m = Math.ceil(w.length /2);
-              return [
-                w.slice(0,m).join(" "),
-                w.slice(0,m).join(" "),
-                w.slice(m).join(" "),
-                w.slice(m).join(" "),
-                a,
-                b
-              ];
-            })();
-
-      stanzas.push(stanza(l[0],l[1]));
-      stanzas.push(stanza(l[2],l[3]));
-      stanzas.push(stanza(l[4],l[5]));
-
-      const all = shuffle(extract(l.join(" ")));
-      const size = Math.ceil(all.length /6);
-      stanzas.push(
-        Array.from({length:6},(_,i)=>all.slice(i*size,(i+1)*size).join(" "))
-      );
-
-      return stanzas;
-    }
-  },
-
-  obverse: {
-    name: "obverse",
-    title: "Obverse",
-    info: "The obverse was created by Nicole Sealey for her poem \"Candelabra with Heads\" in her 2017 debut, \"Ordinary Beast.\" Inputs are mirrored into two stanzas, followed by a thesis question.",
-    state: loadState("obverse", { inputs: Array(4).fill(""), thesis: "" }),
-
-    renderInputs() {
-      inputSection.innerHTML = "";
-      this.state.inputs.forEach((v,i) => {
-        const input = document.createElement("input");
-        input.placeholder = `Input ${i+1}`;
-        input.value = v;
-        input.oninput = e => {
-          this.state.inputs[i] = e.target.value;
-          saveState("obverse", this.state);
-        };
-        inputSection.appendChild(input);
-      });
-
-      const t = document.createElement("input");
-      t.placeholder = "Thesis question";
-      t.value = this.state.thesis;
-      t.oninput = e => { this.state.thesis = e.target.value; saveState("obverse", this.state); };
-      inputSection.appendChild(t);
-
-      addGenerateButtons(this);
-    },
-
-    generate(reverse) {
-      const clean = this.state.inputs.filter(l => l.trim());
-      const q = this.state.thesis.replace(/\?*$/,"") + "?";
-      return [
-        reverse ? [...clean].reverse() : clean,
-        reverse ? clean : [...clean].reverse(),
-        [q]
-      ];
-    }
+  if(currentForm==="obverse"){
+    const thesisWrapper=document.createElement("div");
+    const thesisInput=document.createElement("input"); thesisInput.placeholder="Thesis question"; thesisInput.value=thesisQuestion;
+    thesisInput.oninput=e=>thesisQuestion=e.target.value; thesisWrapper.appendChild(thesisInput);
+    const qMark=document.createElement("span"); qMark.textContent="?"; thesisWrapper.appendChild(qMark);
+    inputSection.appendChild(thesisWrapper);
   }
 
+  const btn=document.createElement("button"); btn.textContent=`Generate ${currentForm}`; btn.onclick=()=>{
+    isReverseMode=false; outputSection.style.display="block"; inputSection.style.display="none";
+    currentForm==="paradelle"?prepareParadelle(false):prepareObverse(false); renderPoem();
+  };
+  const btnRev=document.createElement("button"); btnRev.textContent="Generate in Reverse"; btnRev.onclick=()=>{
+    isReverseMode=true; outputSection.style.display="block"; inputSection.style.display="none";
+    currentForm==="paradelle"?prepareParadelle(true):prepareObverse(true); renderPoem();
+  };
+  inputSection.appendChild(btn); inputSection.appendChild(btnRev);
 };
 
-function renderForm(name) {
-  const f = forms[name];
-  document.getElementById("title").textContent = f.title;
-  document.getElementById("info").textContent = f.info;
-  inputSection.style.display = "block";
-  outputSection.style.display = "none";
-  f.renderInputs();
-}
-
-document.getElementById("backBtn").onclick = () => {
-  outputSection.style.display = "none";
-  inputSection.style.display = "block";
+backBtn.onclick=()=>{outputSection.style.display="none"; inputSection.style.display="block"; showPlainText=false;};
+shuffleBtn.onclick=()=>{
+  if(currentForm==="paradelle"){
+    const keys=!isReverseMode?["s1l5","s1l6","s2l5","s2l6","s3l5","s3l6"]:["s1l1","s1l3","s2l1","s2l3","s3l1","s3l3"];
+    keys.forEach(k=>interactiveLines[k]&&shuffleArray(interactiveLines[k]));
+    for(let i=0;i<6;i++){interactiveLines[`f${i}`]&&shuffleArray(interactiveLines[`f${i}`]);}
+    if(isReverseMode) updateMirroredLines();
+    renderPoem();
+  }
 };
+togglePlainBtn.onclick=()=>{showPlainText=!showPlainText; togglePlainBtn.textContent=showPlainText?"View as Interactive":"View as Plain Text"; renderPoem();};
 
-document.querySelectorAll(".menu-item").forEach(i =>
-  i.onclick = () => renderForm(i.dataset.form)
-);
+// --- Form Selection ---
+const forms = {
+  paradelle: {title:"Paradelle", info:"A paradelle is a poetic form involving repetition and rearrangement. Billy Collins invented it in \"Paradelle for Susan\" for his 1998 book, \"Picnic, Lightning,\" but claimed that it was an 11th century French form. The prank successfully prompted a paradelle revival before Collins admitted in 2002 that he made it up."},
+  obverse: {title:"Obverse", info:"The obverse was created by Nicole Sealey for her poem \"Candelabra with Heads\" in her 2017 debut, \"Ordinary Beast.\" Inputs are mirrored into two stanzas, followed by a thesis question."}
+};
+const menu = document.createElement("select");
+Object.keys(forms).forEach(k=>{const o=document.createElement("option"); o.value=k; o.textContent=forms[k].title; menu.appendChild(o);});
+menu.onchange=e=>{currentForm=e.target.value; titleEl.textContent=forms[currentForm].title; infoEl.textContent=forms[currentForm].info; generateInputs();};
+document.body.insertBefore(menu, inputSection);
 
-// initial load
-renderForm("paradelle");
+titleEl.textContent=forms[currentForm].title; infoEl.textContent=forms[currentForm].info;
+generateInputs();
 
-});
 </script>
-
 </body>
 </html>
