@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Paradelle Generator</title>
+  <title>Poem Generator</title>
   <style>
     body {
       font-family: sans-serif;
@@ -155,7 +155,7 @@
 </head>
 <body>
     <div id="menu">
-    ☰
+    ☰ Choose a poem type
     <div id="menu-content">
         <div class="menu-item" data-form="paradelle">Paradelle</div>
         <div class="menu-item" data-form="newform">Obverse</div>
@@ -181,8 +181,19 @@
 
   <script>
 
+    document.addEventListener("DOMContentLoaded", () => {
+
     /* -----------------------------
-    STATE
+        DOM REFERENCES
+    ----------------------------- */
+
+    const inputSection = document.getElementById("input-section");
+    const outputSection = document.getElementById("output-section");
+    const title = document.getElementById("title");
+    const info = document.getElementById("info");
+
+    /* -----------------------------
+        STATE
     ----------------------------- */
 
     let currentForm = "paradelle";
@@ -193,111 +204,48 @@
     let thesisQuestion = "";
 
     /* -----------------------------
-    CORE GENERATORS
+        CORE GENERATORS
     ----------------------------- */
 
     const handleGenerateParadelle = (reverse) => {
-    isReverseMode = reverse;
-    inputSection.style.display = "none";
-    outputSection.style.display = "block";
-    renderParadelle();
+        isReverseMode = reverse;
+        inputSection.style.display = "none";
+        outputSection.style.display = "block";
+        renderParadelle();
     };
 
     const handleGenerateObverse = (reverse) => {
-    isReverseMode = reverse;
-    inputSection.style.display = "none";
-    outputSection.style.display = "block";
-    renderObverse();
+        isReverseMode = reverse;
+        inputSection.style.display = "none";
+        outputSection.style.display = "block";
+        renderObverse();
     };
 
     /* -----------------------------
-    FORM REGISTRY
+        FORM REGISTRY
     ----------------------------- */
 
     const forms = {
-    paradelle: {
+        paradelle: {
         title: "Paradelle Generator",
         info: "A constrained poem built from repeating and recombining lines.",
         generate: handleGenerateParadelle
-    },
-    obverse: {
+        },
+        obverse: {
         title: "Obverse",
         info: "Inputs are mirrored to form two stanzas, followed by a thesis question.",
         generate: handleGenerateObverse
-    }
+        }
     };
 
     /* -----------------------------
-    INPUT RENDERERS
-    ----------------------------- */
-
-    const generateInputs = () => {
-    inputSection.innerHTML = "";
-
-    const container = document.createElement("div");
-    inputSection.appendChild(container);
-
-    renderDraggableInputs(container, inputLines, "Enter line");
-
-    const btn = document.createElement("button");
-    btn.textContent = "Generate";
-    btn.onclick = () => forms[currentForm].generate(false);
-
-    const btnReverse = document.createElement("button");
-    btnReverse.textContent = "Generate (Reverse)";
-    btnReverse.onclick = () => forms[currentForm].generate(true);
-
-    inputSection.append(btn, btnReverse);
-    };
-
-    const generateObverseInputs = () => {
-    inputSection.innerHTML = "";
-
-    const container = document.createElement("div");
-    inputSection.appendChild(container);
-
-    renderDraggableInputs(container, obverseInputs, "Input");
-
-    const addBtn = document.createElement("button");
-    addBtn.textContent = "Add input";
-    addBtn.onclick = () => {
-        obverseInputs.push("");
-        generateObverseInputs();
-    };
-
-    const thesisWrap = document.createElement("div");
-    thesisWrap.style.marginTop = "1rem";
-
-    const thesisInput = document.createElement("input");
-    thesisInput.placeholder = "Thesis question";
-    thesisInput.value = thesisQuestion;
-    thesisInput.oninput = e => thesisQuestion = e.target.value;
-
-    const questionMark = document.createElement("span");
-    questionMark.textContent = " ?";
-    questionMark.style.marginLeft = "0.25rem";
-
-    thesisWrap.append(thesisInput, questionMark);
-
-    const btn = document.createElement("button");
-    btn.textContent = "Generate";
-    btn.onclick = () => forms[currentForm].generate(false);
-
-    const btnReverse = document.createElement("button");
-    btnReverse.textContent = "Generate (Reverse)";
-    btnReverse.onclick = () => forms[currentForm].generate(true);
-
-    inputSection.append(addBtn, thesisWrap, btn, btnReverse);
-    };
-
-    /* -----------------------------
-    DRAGGABLE INPUT HELPER
+        DRAGGABLE INPUT HELPER
     ----------------------------- */
 
     const renderDraggableInputs = (container, values, label) => {
-    container.innerHTML = "";
+        container.innerHTML = "";
 
-    values.forEach((value, index) => {
+        values.forEach((value, index) => {
         const row = document.createElement("div");
         row.className = "input-row";
         row.draggable = true;
@@ -312,91 +260,156 @@
         input.oninput = e => values[index] = e.target.value;
 
         row.ondragstart = e => {
-        e.dataTransfer.setData("text/plain", index);
-        row.style.opacity = "0.5";
+            e.dataTransfer.setData("text/plain", index);
+            row.style.opacity = "0.5";
         };
 
         row.ondragend = () => row.style.opacity = "1";
-
         row.ondragover = e => e.preventDefault();
 
         row.ondrop = e => {
-        e.preventDefault();
-        const from = +e.dataTransfer.getData("text/plain");
-        const to = index;
-        if (from === to) return;
-        const moved = values.splice(from, 1)[0];
-        values.splice(to, 0, moved);
-        renderDraggableInputs(container, values, label);
+            e.preventDefault();
+            const from = +e.dataTransfer.getData("text/plain");
+            const to = index;
+            if (from === to) return;
+            const moved = values.splice(from, 1)[0];
+            values.splice(to, 0, moved);
+            renderDraggableInputs(container, values, label);
         };
 
         row.append(handle, input);
         container.appendChild(row);
-    });
+        });
     };
 
     /* -----------------------------
-    OUTPUT RENDERERS
+        INPUT RENDERERS
+    ----------------------------- */
+
+    const generateInputs = () => {
+        inputSection.innerHTML = "";
+        outputSection.style.display = "none";
+        inputSection.style.display = "block";
+
+        const container = document.createElement("div");
+        inputSection.appendChild(container);
+
+        renderDraggableInputs(container, inputLines, "Enter line");
+
+        const btn = document.createElement("button");
+        btn.textContent = "Generate";
+        btn.onclick = () => forms[currentForm].generate(false);
+
+        const btnReverse = document.createElement("button");
+        btnReverse.textContent = "Generate (Reverse)";
+        btnReverse.onclick = () => forms[currentForm].generate(true);
+
+        inputSection.append(btn, btnReverse);
+    };
+
+    const generateObverseInputs = () => {
+        inputSection.innerHTML = "";
+        outputSection.style.display = "none";
+        inputSection.style.display = "block";
+
+        const container = document.createElement("div");
+        inputSection.appendChild(container);
+
+        renderDraggableInputs(container, obverseInputs, "Input");
+
+        const addBtn = document.createElement("button");
+        addBtn.textContent = "Add input";
+        addBtn.onclick = () => {
+        obverseInputs.push("");
+        generateObverseInputs();
+        };
+
+        const thesisWrap = document.createElement("div");
+        thesisWrap.style.marginTop = "1rem";
+
+        const thesisInput = document.createElement("input");
+        thesisInput.placeholder = "Thesis question";
+        thesisInput.value = thesisQuestion;
+        thesisInput.oninput = e => thesisQuestion = e.target.value;
+
+        const qm = document.createElement("span");
+        qm.textContent = " ?";
+        qm.style.marginLeft = "0.25rem";
+
+        thesisWrap.append(thesisInput, qm);
+
+        const btn = document.createElement("button");
+        btn.textContent = "Generate";
+        btn.onclick = () => forms[currentForm].generate(false);
+
+        const btnReverse = document.createElement("button");
+        btnReverse.textContent = "Generate (Reverse)";
+        btnReverse.onclick = () => forms[currentForm].generate(true);
+
+        inputSection.append(addBtn, thesisWrap, btn, btnReverse);
+    };
+
+    /* -----------------------------
+        OUTPUT RENDERERS
     ----------------------------- */
 
     const renderParadelle = () => {
-    outputSection.textContent = isReverseMode
-        ? "Paradelle (reverse mode)"
-        : "Paradelle (forward mode)";
+        outputSection.textContent =
+        isReverseMode ? "Paradelle (reverse)" : "Paradelle (forward)";
     };
 
     const renderObverse = () => {
-    const lines = obverseInputs.filter(l => l.trim());
-    const reversed = [...lines].reverse();
+        outputSection.innerHTML = "";
 
-    outputSection.innerHTML = "";
+        const lines = obverseInputs.filter(l => l.trim());
+        const reversed = [...lines].reverse();
 
-    const stanza1 = document.createElement("div");
-    const stanza2 = document.createElement("div");
+        const first = isReverseMode ? reversed : lines;
+        const second = isReverseMode ? lines : reversed;
 
-    const first = isReverseMode ? reversed : lines;
-    const second = isReverseMode ? lines : reversed;
+        const stanza1 = document.createElement("div");
+        const stanza2 = document.createElement("div");
 
-    first.forEach(l => stanza1.append(l, document.createElement("br")));
-    second.forEach(l => stanza2.append(l, document.createElement("br")));
+        first.forEach(l => stanza1.append(l, document.createElement("br")));
+        second.forEach(l => stanza2.append(l, document.createElement("br")));
 
-    const thesis = document.createElement("div");
-    thesis.style.marginTop = "1rem";
-    thesis.textContent = thesisQuestion.trim().endsWith("?")
+        const thesis = document.createElement("div");
+        thesis.style.marginTop = "1rem";
+        thesis.textContent = thesisQuestion.trim().endsWith("?")
         ? thesisQuestion.trim()
         : thesisQuestion.trim() + "?";
 
-    outputSection.append(stanza1, stanza2, thesis);
+        outputSection.append(stanza1, stanza2, thesis);
     };
 
     /* -----------------------------
-    TITLE + MENU
+        TITLE + MENU
     ----------------------------- */
 
     const renderTitle = () => {
-    title.textContent = forms[currentForm].title;
-    info.textContent = forms[currentForm].info;
+        title.textContent = forms[currentForm].title;
+        info.textContent = forms[currentForm].info;
     };
 
     document.querySelectorAll(".menu-item").forEach(item => {
-    item.onclick = () => {
+        item.addEventListener("click", () => {
         currentForm = item.dataset.form;
-        outputSection.style.display = "none";
-        inputSection.style.display = "block";
         renderTitle();
-
         currentForm === "obverse"
-        ? generateObverseInputs()
-        : generateInputs();
-    };
+            ? generateObverseInputs()
+            : generateInputs();
+        });
     });
 
     /* -----------------------------
-    INITIAL LOAD
+        INITIAL LOAD
     ----------------------------- */
 
     renderTitle();
     generateInputs();
+
+    });
+
 
 
   </script>
