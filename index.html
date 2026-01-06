@@ -189,7 +189,6 @@ const generateInputs = () => {
       const row = document.createElement("div");
       row.style.display = "flex";
       row.style.alignItems = "center";
-      row.style.marginBottom = "0.5rem";
 
       const inp = document.createElement("input");
       inp.placeholder = `Enter line ${i + 1}`;
@@ -268,7 +267,7 @@ const generateInputs = () => {
   };
 
   const btnRev = document.createElement("button");
-  btnRev.textContent = "Generate in Reverse";
+  btnRev.textContent = "Generate in reverse";
   btnRev.onclick = () => {
     isReverseMode = true;
     outputSection.style.display = "block";
