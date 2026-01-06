@@ -190,15 +190,14 @@ const generateInputs = () => {
       row.style.display = "flex";
       row.style.alignItems = "center";
       row.style.margin = "0";
-      row.className = "input-row obverse-row";
 
       const inp = document.createElement("input");
       inp.placeholder = `Enter line ${i + 1}`;
       inp.value = l;
       inp.oninput = e => inputLines[i] = e.target.value;
       inp.style.flex = "1";  // narrower width
-      inp.style.marginTop = "0.25rem";
-      inp.style.marginBottom = "0.25rem";
+      inp.style.marginTop = "0.125rem";
+      inp.style.marginBottom = "0.125rem";
       row.appendChild(inp);
 
       const addBtn = document.createElement("button");
