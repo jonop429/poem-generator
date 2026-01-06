@@ -13,6 +13,7 @@ select {
 }
 input { display:block; width:100%; margin-bottom:0.5rem; padding:0.5rem; }
 button { padding:0.5rem 1rem; margin:0.25rem 0.25rem 0.25rem 0; cursor:pointer; }
+button.small { font-size: 0.85rem; padding:0.25rem 0.5rem; }
 .poem { background:#f9f9f9; padding:1rem; border:1px solid #ccc; white-space:pre-wrap; margin-top:1rem; }
 .word { display:inline-block; margin:2px; padding:4px 6px; background:#f0f0f0; border:1px solid #ccc; cursor:move; user-select:none; }
 </style>
@@ -191,7 +192,7 @@ const generateInputs = () => {
       row.style.marginBottom = "0.5rem";
 
       const inp = document.createElement("input");
-      inp.placeholder = `Input ${i + 1}`;
+      inp.placeholder = `Enter line ${i + 1}`;
       inp.value = l;
       inp.oninput = e => inputLines[i] = e.target.value;
       inp.style.flex = "1";  // narrower width
@@ -214,6 +215,9 @@ const generateInputs = () => {
         }
       };
       row.appendChild(delBtn);
+
+      addBtn.classList.add("small");
+      delBtn.classList.add("small");
 
       inputSection.appendChild(row);
     }
