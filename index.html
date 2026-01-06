@@ -303,7 +303,7 @@ const forms = {
 };
 const menu = document.createElement("select");
 Object.keys(forms).forEach(k=>{const o=document.createElement("option"); o.value=k; o.textContent=forms[k].title; menu.appendChild(o);});
-menu.onchange=e=>{currentForm=e.target.value; titleEl.textContent=forms[currentForm].title; infoEl.textContent=forms[currentForm].info; generateInputs();};
+menu.onchange=e=>{currentForm=e.target.value; titleEl.textContent=forms[currentForm].title; infoEl.textContent=forms[currentForm].info; inputLines = []; thesisQuestion = ""; generateInputs();};
 document.body.insertBefore(menu, inputSection);
 
 titleEl.textContent=forms[currentForm].title; infoEl.textContent=forms[currentForm].info;
