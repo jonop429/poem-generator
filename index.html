@@ -8,7 +8,6 @@
 body { font-family:sans-serif; max-width:800px; margin:2rem auto; padding:1rem; }
 p { font-size: smaller; }
 select {
-  font-size: 1.1rem;          /* slightly larger text */
   padding: 0.5rem 0.75rem;    /* space INSIDE the button */
   margin-bottom: 1.25rem;    /* space BELOW the menu */
 }
@@ -175,7 +174,9 @@ const generateInputs = () => {
   // --- INITIALIZE INPUT LINES SAFELY ---
   if (currentForm === "paradelle") {
     inputLines = Array(6).fill("");
-  } else if (currentForm === "obverse" && inputLines.length === 0) {
+  }
+
+  if (currentForm === "obverse" && inputLines.length === 0) {
     inputLines = Array(4).fill("");
   }
 
@@ -257,6 +258,7 @@ const generateInputs = () => {
     isReverseMode = false;
     outputSection.style.display = "block";
     inputSection.style.display = "none";
+    menu.style.display = "none";
     currentForm === "paradelle" ? prepareParadelle(false) : prepareObverse(false);
     renderPoem();
   };
@@ -267,6 +269,7 @@ const generateInputs = () => {
     isReverseMode = true;
     outputSection.style.display = "block";
     inputSection.style.display = "none";
+    menu.style.display = "none";
     currentForm === "paradelle" ? prepareParadelle(true) : prepareObverse(true);
     renderPoem();
   };
@@ -275,7 +278,7 @@ const generateInputs = () => {
   inputSection.appendChild(btnRev);
 };
 
-backBtn.onclick=()=>{outputSection.style.display="none"; inputSection.style.display="block"; showPlainText=false;};
+backBtn.onclick=()=>{outputSection.style.display="none"; inputSection.style.display="block"; menu.style.display = "block"; showPlainText=false;};
 shuffleBtn.onclick=()=>{
   if(currentForm==="paradelle"){
     const keys=!isReverseMode?["s1l5","s1l6","s2l5","s2l6","s3l5","s3l6"]:["s1l1","s1l3","s2l1","s2l3","s3l1","s3l3"];
