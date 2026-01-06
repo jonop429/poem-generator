@@ -197,6 +197,7 @@ const generateInputs = () => {
       inp.value = l;
       inp.oninput = e => inputLines[i] = e.target.value;
       inp.style.flex = "1";  // narrower width
+      inp.style.margin = "0";
       row.appendChild(inp);
 
       const addBtn = document.createElement("button");
